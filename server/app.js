@@ -4,6 +4,7 @@ const utils = require('./lib/hashUtils');
 const partials = require('express-partials');
 const bodyParser = require('body-parser');
 const Auth = require('./middleware/auth');
+const parseCookies = require('./middleware/cookieParser');
 const models = require('./models');
 
 const app = express();
@@ -14,20 +15,22 @@ app.use(partials());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
+app.use(parseCookies);
+app.use(Auth.createSession);
 
 
 
-app.get('/', 
+app.get('/',
 (req, res) => {
   res.render('index');
 });
 
-app.get('/create', 
+app.get('/create',
 (req, res) => {
   res.render('index');
 });
 
-app.get('/links', 
+app.get('/links',
 (req, res, next) => {
   models.Links.getAll()
     .then(links => {
@@ -38,7 +41,7 @@ app.get('/links',
     });
 });
 
-app.post('/links', 
+app.post('/links',
 (req, res, next) => {
   var url = req.body.url;
   if (!models.Links.isValidUrl(url)) {
@@ -77,7 +80,44 @@ app.post('/links',
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
+app.post('/signup', (req, res) => {
+  var username = req.body.username;
+  var password = req.body.password;
+  return models.Users.create({ username, password })
+  .then((user) => {
+    if(!user) {
+      throw new Error('User already exists');
+    } else {
+      res.redirect('/');
+    }
+  })
+  .catch(() => {
+    res.redirect('/signup');
+  })
+})
 
+app.post('/login', (req, res) => {
+  var username = req.body.username;
+  var password = req.body.password;
+  return models.Users.get({username})
+  .then((user) => {
+    if (!user) {
+      throw new Error('User does not exist');
+    } else {
+      return models.Users.compare(password, user.password, user.salt);
+    }
+  })
+  .then((valid) =>{
+    if (!valid) {
+      throw new Error('Login failed');
+    } else {
+      res.redirect('/');
+    }
+  })
+  .catch(() => {
+    res.redirect('/login');
+  })
+})
 
 
 /************************************************************/
