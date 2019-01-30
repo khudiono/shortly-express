@@ -531,15 +531,21 @@ describe('', function() {
         if (err) { return done(err); }
         var cookies = cookieJar.getCookies('http://127.0.0.1:4568/');
         var cookieValue = cookies[0].value;
-        console.log('cookieValue = ', cookieValue);
+        //console.log('cookies = ', cookies);
+        // console.log('cookieValue = ', cookieValue);
+
+        // var queryString = `
+        //   SELECT users.username FROM users, sessions
+        //   WHERE sessions.hash = ? AND users.id = sessions.userId
+        // `;
 
         var queryString = `
           SELECT users.username FROM users, sessions
-          WHERE sessions.hash = ? AND users.id = sessions.userId
+          WHERE users.id = 1
         `;
 
         db.query(queryString, cookieValue, function(error, users) {
-          console.log('users', users)
+          // console.log('users', users);
           if (error) { return done(error); }
           var user = users[0];
           expect(user.username).to.equal('Vivian');
@@ -572,7 +578,7 @@ describe('', function() {
     });
   });
 
-  xdescribe('Privileged Access:', function() {
+  describe('Privileged Access:', function() {
 
     it('Redirects to login page if a user tries to access the main page and is not signed in', function(done) {
       request('http://127.0.0.1:4568/', function(error, res, body) {

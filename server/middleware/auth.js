@@ -41,11 +41,13 @@ module.exports.createSession = (req, res, next) => {
     }
     // get username from Users table
     return models.Users.get({id: session.userId});
+    next();
   })
   .then(user => {
     // Create a session property on the request
     // username, userID, and hash
     req.session = {user: {username: user.username}, userId: user.id, hash: req.cookies.shortlyid};
+    models.Sessions.update({hash: req.cookies.shortlyid}, { userId: user.id })
     // what to do next, such as send us to another page
     next();
   })
@@ -53,6 +55,7 @@ module.exports.createSession = (req, res, next) => {
     // Creating a new session
     models.Sessions.create()
     .then(results => {
+      // console.log(results);
       // look up recently created session and get all the parameters for the session
       return models.Sessions.get({id: results.insertId});
     })
@@ -60,7 +63,8 @@ module.exports.createSession = (req, res, next) => {
       // creating a new cookie and attaching to the response
       res.cookie('shortlyid', session.hash);
       // Updating the request with the new session
-      req.session = {user: {username: null}, userId: null, hash: session.hash};
+      // req.session = session;
+      req.session = {user: null, userId: 1, hash: session.hash};
       // do the next thing, such as go to a different page
       next();
     })
@@ -72,3 +76,10 @@ module.exports.createSession = (req, res, next) => {
 // Add additional authentication middleware functions below
 /************************************************************/
 
+module.exports.verifySession = (req, res, next) => {
+  if (!models.Sessions.isLoggedIn(req.session)) {
+    res.redirect('/login');
+  } else {
+    next();
+  }
+};

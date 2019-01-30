@@ -20,17 +20,17 @@ app.use(Auth.createSession);
 
 
 
-app.get('/',
+app.get('/', Auth.verifySession,
 (req, res) => {
   res.render('index');
 });
 
-app.get('/create',
+app.get('/create', Auth.verifySession,
 (req, res) => {
   res.render('index');
 });
 
-app.get('/links',
+app.get('/links', Auth.verifySession,
 (req, res, next) => {
   models.Links.getAll()
     .then(links => {
@@ -41,7 +41,7 @@ app.get('/links',
     });
 });
 
-app.post('/links',
+app.post('/links', Auth.verifySession,
 (req, res, next) => {
   var url = req.body.url;
   if (!models.Links.isValidUrl(url)) {
@@ -80,30 +80,43 @@ app.post('/links',
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
-app.post('/signup', (req, res) => {
+app.post('/signup', (req, res, next) => {
   var username = req.body.username;
   var password = req.body.password;
-  return models.Users.create({ username, password })
-  .then((user) => {
-    if(!user) {
-      throw new Error('User already exists');
-    } else {
+
+  return models.Users.get({ username })
+    .then(user => {
+      if (user) {
+        // user already exists; throw user to catch and redirect
+        throw user;
+      }
+
+      return models.Users.create({ username, password });
+    })
+    .then(results => {
+      return models.Sessions.update({ hash: req.session.hash }, { userId: results.insertId });
+    })
+    .then(() => {
       res.redirect('/');
-    }
-  })
-  .catch(() => {
-    res.redirect('/signup');
-  })
-})
+    })
+    .error(error => {
+      res.status(500).send(error);
+    })
+    .catch(user => {
+      res.redirect('/signup');
+    });
+});
 
 app.post('/login', (req, res) => {
   var username = req.body.username;
   var password = req.body.password;
+  var id;
   return models.Users.get({username})
   .then((user) => {
     if (!user) {
       throw new Error('User does not exist');
     } else {
+      id = user.id;
       return models.Users.compare(password, user.password, user.salt);
     }
   })
@@ -111,14 +124,30 @@ app.post('/login', (req, res) => {
     if (!valid) {
       throw new Error('Login failed');
     } else {
-      res.redirect('/');
+      console.log('id = ', id);
+      return models.Sessions.update({hash: req.session.hash}, { userId: id });
     }
+  })
+  .then((data) => {
+    // console.log(data)
+    res.redirect('/');
   })
   .catch(() => {
     res.redirect('/login');
   })
 })
 
+
+app.get('/logout', (req, res) => {
+  return models.Sessions.delete({hash: req.cookies.shortlyid})
+  .then((data) => {
+    res.clearCookie('shortlyid');
+    res.redirect('/login');
+  })
+  .catch((err) => {
+    res.status(500).send(error);
+  })
+})
 
 /************************************************************/
 // Handle the code parameter route last - if all other routes fail
